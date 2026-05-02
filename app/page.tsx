@@ -30,7 +30,7 @@ type SheetState = 'peek' | 'half' | 'full';
 
 export default function Home() {
   const qc = useQueryClient();
-  const { data: places = SEED_PLACES } = useQuery({ queryKey: ['places'], queryFn: fetchPlaces });
+  const { data: places = SEED_PLACES, isLoading, isError, refetch } = useQuery({ queryKey: ['places'], queryFn: fetchPlaces });
   const allCats = useMemo(() => new Set(Object.keys(CATEGORIES) as Category[]), []);
   const [activeCats, setActiveCats] = useState<Set<Category>>(new Set(allCats));
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -145,15 +145,25 @@ export default function Home() {
       </div>
       {(typeof window !== 'undefined' && (window as any).__TOKYO_DATA_SOURCE__ === 'fallback-memory') && (
         <div className="mx-5 mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
-          Data service is waking up. Showing backup demo data for now.
+          Data service is waking up. Showing backup demo data for now — recent edits may not persist until live data reconnects.
         </div>
       )}
       <div className={`md:block ${filterOpen ? 'block' : 'hidden'}`}>
         <CategoryFilter activeCategories={activeCats} onToggle={toggleCat} onToggleAll={toggleAll} counts={counts} />
       </div>
       <div className="flex-1 overflow-y-auto" ref={listRef}>
-        {filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-40 text-[13px] text-gray-300">No places found</div>
+        {isLoading ? (
+          <div className="flex items-center justify-center h-40 text-[13px] text-gray-400">Loading places…</div>
+        ) : isError ? (
+          <div className="mx-5 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-[12px] text-red-700">
+            Couldn’t load places right now.
+            <button onClick={() => refetch()} className="ml-2 underline underline-offset-2">Retry</button>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-44 text-center px-6">
+            <p className="text-[13px] text-gray-500">No places match your current search or filters.</p>
+            <p className="text-[11px] text-gray-400 mt-1">Try another keyword, or reset filters to explore all places.</p>
+          </div>
         ) : (
           filtered.map(place => (
             <div key={place.id} ref={el => { cardRefs.current[place.id] = el; }}>
@@ -176,6 +186,9 @@ export default function Home() {
           <div className="absolute top-0 left-0 px-6 py-5 pointer-events-none">
             <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif" }} className="text-[26px] text-gray-900 leading-none tracking-tight drop-shadow-sm">Tokyo</h1>
             <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500 mt-1">Travel Notes</p>
+            <p className="mt-2 text-[11px] text-gray-600 max-w-[320px] leading-relaxed">
+              Curated Tokyo spots with map-first exploration, thoughtful editorial notes, and resilient fallback mode for reliable live demos.
+            </p>
           </div>
         </div>
         <div className="w-[400px] flex-shrink-0 border-l border-gray-100 flex flex-col bg-white">{PanelContent}</div>
@@ -187,6 +200,9 @@ export default function Home() {
         <div className="absolute top-0 left-0 px-5 py-4 pointer-events-none">
           <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif" }} className="text-[22px] text-gray-900 leading-none tracking-tight drop-shadow-sm">Tokyo</h1>
           <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 mt-1">Travel Notes</p>
+          <p className="mt-1.5 text-[10px] text-gray-600 max-w-[240px] leading-snug">
+            Map-first city guide with resilient live-demo fallback.
+          </p>
         </div>
         <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl flex flex-col" style={{ height: sheetHeight[sheetState], transition: 'height 0.35s cubic-bezier(0.32, 0.72, 0, 1)', boxShadow: '0 -4px 24px rgba(0,0,0,0.10)' }}>
           <div className="flex-shrink-0 flex flex-col items-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing" onTouchStart={handleDragStart} onTouchEnd={handleDragEnd} onClick={cycleSheet}>

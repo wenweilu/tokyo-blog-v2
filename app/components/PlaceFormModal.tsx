@@ -41,6 +41,32 @@ export default function PlaceFormModal({ mode, initial, onClose, onSave }: Props
       setError('Name, address, latitude and longitude are required.');
       return;
     }
+
+    const lat = Number(form.lat);
+    const lng = Number(form.lng);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      setError('Latitude must be a number between -90 and 90.');
+      return;
+    }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      setError('Longitude must be a number between -180 and 180.');
+      return;
+    }
+
+    const website = form.website.trim();
+    if (website) {
+      try {
+        const u = new URL(website);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+          setError('Website must start with http:// or https://');
+          return;
+        }
+      } catch {
+        setError('Website must be a valid URL (e.g. https://example.com).');
+        return;
+      }
+    }
+
     setSaving(true);
     setError('');
     try {
@@ -51,9 +77,9 @@ export default function PlaceFormModal({ mode, initial, onClose, onSave }: Props
         introduction: form.introduction.trim(),
         address: form.address.trim(),
         opening_hours: form.opening_hours.trim(),
-        lat: parseFloat(form.lat),
-        lng: parseFloat(form.lng),
-        website: form.website.trim() || undefined,
+        lat,
+        lng,
+        website: website || undefined,
       };
       await onSave(payload as any);
       onClose();

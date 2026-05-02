@@ -25,6 +25,8 @@ export default function TripPlanner({ places, onClose }: Props) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lastQuestion, setLastQuestion] = useState('');
+  const [errorHint, setErrorHint] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,19 +35,45 @@ export default function TripPlanner({ places, onClose }: Props) {
 
   const ask = async (question: string) => {
     if (!question.trim() || loading) return;
+    setLastQuestion(question);
+    setErrorHint('');
     setMessages(prev => [...prev, { role: 'user', text: question }]);
     setInput('');
     setLoading(true);
+
     try {
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'plan', question, places }),
       });
-      const data = await res.json();
-      setMessages(prev => [...prev, { role: 'ai', text: data.text || data.error || 'Sorry, something went wrong.' }]);
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const err = String(data?.error || 'Unknown error');
+        const lower = err.toLowerCase();
+
+        let hint = 'Please try again in a moment.';
+        if (res.status === 429 || lower.includes('rate')) hint = 'Rate limit reached. Try again in 20–30 seconds.';
+        else if (res.status === 503 || lower.includes('overloaded')) hint = 'Service is busy right now. Please retry shortly.';
+        else if (lower.includes('not configured') || lower.includes('api key')) hint = 'AI planner is not configured in this deployment yet.';
+
+        setErrorHint(hint);
+        setMessages(prev => [...prev, {
+          role: 'ai',
+          text: `I hit a temporary issue. ${hint} You can also try: “Where should I go for coffee in Shibuya?”`
+        }]);
+        return;
+      }
+
+      setMessages(prev => [...prev, { role: 'ai', text: data.text || 'I could not generate a plan yet. Please try again.' }]);
     } catch {
-      setMessages(prev => [...prev, { role: 'ai', text: 'Could not reach Gemini. Please try again.' }]);
+      const hint = 'Network issue while contacting AI planner. Please retry.';
+      setErrorHint(hint);
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        text: `${hint} You can also try: “Best place for a rainy afternoon?”`
+      }]);
     } finally {
       setLoading(false);
     }
@@ -116,6 +144,12 @@ export default function TripPlanner({ places, onClose }: Props) {
 
         {/* Input */}
         <div className="px-4 pb-4 pt-2 border-t border-gray-100 flex-shrink-0">
+          {errorHint && lastQuestion && !loading && (
+            <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700 flex items-center justify-between gap-2">
+              <span>{errorHint}</span>
+              <button onClick={() => ask(lastQuestion)} className="underline underline-offset-2 whitespace-nowrap">Retry</button>
+            </div>
+          )}
           <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-purple-300 transition-colors">
             <input
               type="text"

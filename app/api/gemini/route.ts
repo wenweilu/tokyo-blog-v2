@@ -12,21 +12,33 @@ async function callGemini(prompt: string, retries = 3): Promise<string> {
         generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
       }),
     });
+
     if (res.ok) {
       const data = await res.json();
       return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     }
-    const err = await res.text();
-    const parsed = JSON.parse(err);
-    const status = parsed?.error?.code;
+
+    const errText = await res.text();
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(errText);
+    } catch {
+      parsed = null;
+    }
+
+    const statusCode = parsed?.error?.code ?? res.status;
+    const statusMessage = parsed?.error?.message ?? errText ?? 'Unknown Gemini error';
+
     // Retry on 503 (overloaded) or 429 (rate limit)
-    if ((status === 503 || status === 429) && attempt < retries - 1) {
+    if ((statusCode === 503 || statusCode === 429) && attempt < retries - 1) {
       const wait = (attempt + 1) * 3000;
       await new Promise(r => setTimeout(r, wait));
       continue;
     }
-    throw new Error(`Gemini error: ${err}`);
+
+    throw new Error(`Gemini error (${statusCode}): ${statusMessage}`);
   }
+
   throw new Error('Gemini failed after retries');
 }
 
