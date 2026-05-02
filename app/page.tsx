@@ -42,7 +42,9 @@ export default function Home() {
   const [editPlace, setEditPlace] = useState<Place | null>(null);
   const [deletePlace, setDeletePlace] = useState<Place | null>(null);
   const [plannerOpen, setPlannerOpen] = useState(false);
+  const [introOpen, setIntroOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const gotItBtnRef = useRef<HTMLButtonElement>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dragStartY = useRef<number>(0);
   const dragStartSheet = useRef<SheetState>('peek');
@@ -52,6 +54,36 @@ export default function Home() {
     const el = cardRefs.current[selectedId];
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [selectedId]);
+
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem('tokyo_intro_seen');
+      if (!seen) setIntroOpen(true);
+    } catch {
+      setIntroOpen(true);
+    }
+  }, []);
+
+  const dismissIntro = () => {
+    setIntroOpen(false);
+    try { localStorage.setItem('tokyo_intro_seen', '1'); } catch {}
+  };
+
+  const showIntroAgain = () => {
+    setIntroOpen(true);
+    try { localStorage.removeItem('tokyo_intro_seen'); } catch {}
+  };
+
+  useEffect(() => {
+    if (!introOpen) return;
+    gotItBtnRef.current?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') dismissIntro();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [introOpen]);
 
   const toggleCat = useCallback((cat: Category) => {
     setActiveCats(prev => {
@@ -180,6 +212,24 @@ export default function Home() {
 
   return (
     <main className="relative flex h-screen w-screen overflow-hidden bg-white">
+      {introOpen && (
+        <div className="absolute inset-0 z-[70] bg-white/95 backdrop-blur-[1px] flex items-start justify-center">
+          <div className="w-full max-w-[720px] px-6 pt-16 md:pt-20">
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif" }} className="text-[44px] md:text-[56px] leading-none text-gray-900">Tokyo</h2>
+            <p className="mt-2 text-[14px] md:text-[16px] uppercase tracking-[0.24em] text-gray-500">Travel Notes</p>
+            <p className="mt-6 text-[22px] md:text-[28px] leading-[1.35] text-gray-800">
+              Curated Tokyo spots with map-first exploration, thoughtful editorial notes, and resilient fallback mode for reliable live demos.
+            </p>
+            <button
+              ref={gotItBtnRef}
+              onClick={dismissIntro}
+              className="mt-8 px-6 py-3 rounded-xl bg-gray-900 text-white text-[16px] hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
       <div className="hidden md:flex w-full h-full">
         <div className="flex-1 relative min-w-0">
           <TokyoMap places={filtered} selectedId={selectedId} hoveredId={hoveredId} onSelect={handleSelect} onHover={setHoveredId} apiKey={API_KEY} listRef={listRef} />
@@ -221,6 +271,15 @@ export default function Home() {
       {editPlace && <PlaceFormModal mode="edit" initial={editPlace} onClose={() => setEditPlace(null)} onSave={handleEdit as any} />}
       {deletePlace && <DeleteConfirmModal place={deletePlace} onClose={() => setDeletePlace(null)} onConfirm={() => handleDelete(deletePlace.id)} />}
       {plannerOpen && <TripPlanner places={places} onClose={() => setPlannerOpen(false)} />}
+
+      {!introOpen && (
+        <button
+          onClick={showIntroAgain}
+          className="absolute right-4 bottom-4 z-[60] rounded-full border border-gray-200 bg-white/95 px-3 py-1.5 text-[11px] text-gray-600 hover:text-gray-900 hover:border-gray-400 transition-colors"
+        >
+          Show intro again
+        </button>
+      )}
     </main>
   );
 }
