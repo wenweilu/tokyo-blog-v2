@@ -6,6 +6,7 @@ interface Props {
   place: Place;
   isSelected: boolean;
   isHovered: boolean;
+  userLocation?: { lat: number; lng: number } | null;
   onClick: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
@@ -13,21 +14,24 @@ interface Props {
   onDelete: () => void;
 }
 
-export default function PlaceCard({ place, isSelected, isHovered, onClick, onMouseEnter, onMouseLeave, onEdit, onDelete }: Props) {
+export default function PlaceCard({ place, isSelected, isHovered, userLocation, onClick, onMouseEnter, onMouseLeave, onEdit, onDelete }: Props) {
   const meta = CATEGORIES[place.category];
   const active = isSelected || isHovered;
+  const directionsUrl = userLocation
+    ? `https://www.google.com/maps/dir/?api=1&origin=${userLocation.lat},${userLocation.lng}&destination=${place.lat},${place.lng}&travelmode=walking`
+    : `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`;
 
   return (
     <div
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`group relative border-b border-gray-100 py-5 px-6 cursor-pointer transition-all duration-150 border-l-2 ${active ? 'bg-gray-50/80' : 'bg-white hover:bg-gray-50/50'}`}
+      className={`group relative border-b border-gray-100 py-5 px-6 cursor-pointer transition-all duration-150 border-l-2 ${active ? 'bg-gray-50/80' : 'bg-white md:hover:bg-gray-50/50'}`}
       style={{ borderLeftColor: isSelected ? meta.color : 'transparent' }}
     >
       {/* Action buttons — appear on hover */}
       <div
-        className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+        className="absolute top-4 right-4 hidden md:flex items-center gap-1 opacity-0 md:group-hover:opacity-100 transition-opacity duration-150"
         onClick={e => e.stopPropagation()}
       >
         <button
@@ -78,6 +82,10 @@ export default function PlaceCard({ place, isSelected, isHovered, onClick, onMou
             <p className="text-[12px] text-gray-600 leading-relaxed">{place.address}</p>
           </div>
         )}
+        <div className="flex items-start gap-2">
+          <svg className="flex-shrink-0 mt-[3px] text-gray-300" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <a href={directionsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-[12px] text-gray-600 hover:text-gray-800 underline underline-offset-2 transition-colors leading-relaxed">Directions</a>
+        </div>
         {place.website && (
           <div className="flex items-start gap-2">
             <svg className="flex-shrink-0 mt-[3px] text-gray-300" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>

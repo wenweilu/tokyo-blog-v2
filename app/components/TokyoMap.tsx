@@ -88,10 +88,22 @@ function MapContent({ places, selectedId, hoveredId, onSelect, onHover }: {
     if (!map || !selectedId || selectedId === prevId.current) return;
     prevId.current = selectedId;
     const place = places.find(p => p.id === selectedId);
-    if (place) {
+    if (!place) return;
+
+    if ((map.getZoom() ?? 12) < 14) map.setZoom(14);
+
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    if (!isMobile) {
       map.panTo({ lat: place.lat, lng: place.lng });
-      if ((map.getZoom() ?? 12) < 14) map.setZoom(14);
+      return;
     }
+
+    // Mobile: first center on selected place, then shift map down so marker appears higher
+    // in the visible top map strip above the bottom sheet.
+    map.panTo({ lat: place.lat, lng: place.lng });
+    google.maps.event.addListenerOnce(map, 'idle', () => {
+      map.panBy(0, Math.round(window.innerHeight * 0.32));
+    });
   }, [selectedId, map, places]);
 
   useEffect(() => {
