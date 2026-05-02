@@ -61,7 +61,7 @@ export default function PlaceCard({ place, isSelected, isHovered, onClick, onMou
 
       {/* Intro */}
       {place.introduction && (
-        <p className="text-[12.5px] leading-relaxed text-gray-500 mb-3 line-clamp-2">{place.introduction}</p>
+        <p className="text-[14px] leading-relaxed text-gray-700 mb-3 line-clamp-2">{place.introduction}</p>
       )}
 
       {/* Meta */}
@@ -69,19 +69,19 @@ export default function PlaceCard({ place, isSelected, isHovered, onClick, onMou
         {place.opening_hours && (
           <div className="flex items-start gap-2">
             <svg className="flex-shrink-0 mt-[3px] text-gray-300" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <p className="text-[11px] text-gray-400 leading-relaxed">{place.opening_hours}</p>
+            <p className="text-[12px] text-gray-600 leading-relaxed">{place.opening_hours}</p>
           </div>
         )}
         {place.address && (
           <div className="flex items-start gap-2">
             <svg className="flex-shrink-0 mt-[3px] text-gray-300" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            <p className="text-[11px] text-gray-400 leading-relaxed">{place.address}</p>
+            <p className="text-[12px] text-gray-600 leading-relaxed">{place.address}</p>
           </div>
         )}
         {place.website && (
           <div className="flex items-start gap-2">
             <svg className="flex-shrink-0 mt-[3px] text-gray-300" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-            <a href={place.website} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-[11px] text-gray-400 hover:text-gray-700 underline underline-offset-2 transition-colors leading-relaxed truncate">{place.website.replace(/^https?:\/\//, '')}</a>
+            <a href={place.website} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-[12px] text-gray-600 hover:text-gray-800 underline underline-offset-2 transition-colors leading-relaxed truncate">{place.website.replace(/^https?:\/\//, '')}</a>
           </div>
         )}
       </div>
