@@ -236,9 +236,6 @@ export default function Home() {
           <div className="absolute top-0 left-0 px-6 py-5 pointer-events-none">
             <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif" }} className="text-[26px] text-gray-900 leading-none tracking-tight drop-shadow-sm">Tokyo</h1>
             <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500 mt-1">Travel Notes</p>
-            <p className="mt-2 text-[11px] text-gray-600 max-w-[320px] leading-relaxed">
-              Curated Tokyo spots with map-first exploration, thoughtful editorial notes, and resilient fallback mode for reliable live demos.
-            </p>
           </div>
         </div>
         <div className="w-[400px] flex-shrink-0 border-l border-gray-100 flex flex-col bg-white">{PanelContent}</div>
@@ -250,9 +247,6 @@ export default function Home() {
         <div className="absolute top-0 left-0 px-5 py-4 pointer-events-none">
           <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif" }} className="text-[22px] text-gray-900 leading-none tracking-tight drop-shadow-sm">Tokyo</h1>
           <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 mt-1">Travel Notes</p>
-          <p className="mt-1.5 text-[10px] text-gray-600 max-w-[240px] leading-snug">
-            Map-first city guide with resilient live-demo fallback.
-          </p>
         </div>
         <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl flex flex-col" style={{ height: sheetHeight[sheetState], transition: 'height 0.35s cubic-bezier(0.32, 0.72, 0, 1)', boxShadow: '0 -4px 24px rgba(0,0,0,0.10)' }}>
           <div className="flex-shrink-0 flex flex-col items-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing" onTouchStart={handleDragStart} onTouchEnd={handleDragEnd} onClick={cycleSheet}>
