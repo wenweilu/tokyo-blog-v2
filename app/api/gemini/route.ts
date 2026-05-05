@@ -11,6 +11,36 @@ const GEMINI_MODELS = [
 const REQUEST_TIMEOUT_MS = 20000;
 const MAX_PLACES = 120;
 const MAX_QUESTION_LENGTH = 400;
+const DAILY_REQUEST_CAP = Number(process.env.AI_DAILY_REQUEST_CAP || 100);
+const dailyCounter = new Map<string, { count: number; day: string }>();
+
+function dayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getClientKey(request: NextRequest) {
+  const xff = request.headers.get('x-forwarded-for') || '';
+  const ip = xff.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
+  return ip;
+}
+
+function checkAndCountDailyLimit(request: NextRequest): { allowed: boolean; remaining: number } {
+  if (!Number.isFinite(DAILY_REQUEST_CAP) || DAILY_REQUEST_CAP <= 0) {
+    return { allowed: true, remaining: Number.POSITIVE_INFINITY };
+  }
+
+  const key = `${dayKey()}:${getClientKey(request)}`;
+  const today = dayKey();
+  const prev = dailyCounter.get(key);
+  const nextCount = prev?.day === today ? prev.count + 1 : 1;
+
+  if (nextCount > DAILY_REQUEST_CAP) {
+    return { allowed: false, remaining: 0 };
+  }
+
+  dailyCounter.set(key, { count: nextCount, day: today });
+  return { allowed: true, remaining: Math.max(0, DAILY_REQUEST_CAP - nextCount) };
+}
 
 function modelUrl(model: string) {
   return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
@@ -86,6 +116,16 @@ async function callGemini(prompt: string, retries = 3): Promise<string> {
 export async function POST(request: NextRequest) {
   if (!GEMINI_API_KEY) {
     return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
+  }
+
+  const limit = checkAndCountDailyLimit(request);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      {
+        error: `Daily Ask AI cap reached (${DAILY_REQUEST_CAP}/day). Please try again tomorrow or increase AI_DAILY_REQUEST_CAP.`,
+      },
+      { status: 429 }
+    );
   }
 
   const body = await request.json();
@@ -173,5 +213,6 @@ export async function GET() {
     ok: true,
     geminiConfigured: Boolean(GEMINI_API_KEY),
     modelCandidates: GEMINI_MODELS,
+    dailyCap: DAILY_REQUEST_CAP,
   });
 }
