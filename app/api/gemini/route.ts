@@ -1,45 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_MODELS = [
+  process.env.GEMINI_MODEL,
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-latest',
+].filter(Boolean) as string[];
+
+function modelUrl(model: string) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+}
 
 async function callGemini(prompt: string, retries = 3): Promise<string> {
-  for (let attempt = 0; attempt < retries; attempt++) {
-    const res = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
-      }),
-    });
+  let lastError = 'Gemini failed';
 
-    if (res.ok) {
-      const data = await res.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  for (const model of GEMINI_MODELS) {
+    for (let attempt = 0; attempt < retries; attempt++) {
+      const res = await fetch(modelUrl(model), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      }
+
+      const errText = await res.text();
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(errText);
+      } catch {
+        parsed = null;
+      }
+
+      const statusCode = parsed?.error?.code ?? res.status;
+      const statusMessage = parsed?.error?.message ?? errText ?? 'Unknown Gemini error';
+      lastError = `Gemini model ${model} error (${statusCode}): ${statusMessage}`;
+
+      // model not found/unsupported for this key -> try next model
+      if (statusCode === 404) break;
+
+      // Retry on 503 (overloaded) or 429 (rate limit)
+      if ((statusCode === 503 || statusCode === 429) && attempt < retries - 1) {
+        const wait = (attempt + 1) * 3000;
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+
+      // any other error -> no point trying more retries for this model
+      break;
     }
-
-    const errText = await res.text();
-    let parsed: any = null;
-    try {
-      parsed = JSON.parse(errText);
-    } catch {
-      parsed = null;
-    }
-
-    const statusCode = parsed?.error?.code ?? res.status;
-    const statusMessage = parsed?.error?.message ?? errText ?? 'Unknown Gemini error';
-
-    // Retry on 503 (overloaded) or 429 (rate limit)
-    if ((statusCode === 503 || statusCode === 429) && attempt < retries - 1) {
-      const wait = (attempt + 1) * 3000;
-      await new Promise(r => setTimeout(r, wait));
-      continue;
-    }
-
-    throw new Error(`Gemini error (${statusCode}): ${statusMessage}`);
   }
 
-  throw new Error('Gemini failed after retries');
+  throw new Error(lastError);
 }
 
 export async function POST(request: NextRequest) {
