@@ -54,9 +54,12 @@ export default function TripPlanner({ places, onClose }: Props) {
         const lower = err.toLowerCase();
 
         let hint = 'Please try again in a moment.';
-        if (res.status === 429 || lower.includes('rate')) hint = 'Rate limit reached. Try again in 20–30 seconds.';
+        if (res.status === 429 || lower.includes('rate') || lower.includes('quota')) hint = 'Rate limit or quota reached. Try again shortly or check Gemini billing quota.';
         else if (res.status === 503 || lower.includes('overloaded')) hint = 'Service is busy right now. Please retry shortly.';
-        else if (lower.includes('not configured') || lower.includes('api key')) hint = 'AI planner is not configured in this deployment yet.';
+        else if (res.status === 504 || lower.includes('timeout')) hint = 'The AI request timed out. Please retry with a shorter question.';
+        else if (res.status === 401 || lower.includes('api key') || lower.includes('permission') || lower.includes('forbidden')) hint = 'Gemini API key/config permission issue in this deployment.';
+        else if (res.status === 424 || lower.includes('error (404)')) hint = 'No compatible Gemini model available for this API key/project.';
+        else if (lower.includes('not configured')) hint = 'AI planner is not configured in this deployment yet.';
 
         setErrorHint(hint);
         setMessages(prev => [...prev, {

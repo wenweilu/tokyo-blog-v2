@@ -8,6 +8,10 @@ const GEMINI_MODELS = [
   'gemini-1.5-flash-latest',
 ].filter(Boolean) as string[];
 
+const REQUEST_TIMEOUT_MS = 20000;
+const MAX_PLACES = 120;
+const MAX_QUESTION_LENGTH = 400;
+
 function modelUrl(model: string) {
   return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
 }
@@ -17,14 +21,32 @@ async function callGemini(prompt: string, retries = 3): Promise<string> {
 
   for (const model of GEMINI_MODELS) {
     for (let attempt = 0; attempt < retries; attempt++) {
-      const res = await fetch(modelUrl(model), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
-        }),
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      let res: Response;
+
+      try {
+        res = await fetch(modelUrl(model), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+          }),
+          signal: controller.signal,
+        });
+      } catch (e: any) {
+        clearTimeout(timer);
+        const msg = String(e?.message || e || '').toLowerCase();
+        if (msg.includes('aborted') || msg.includes('abort')) {
+          lastError = `Gemini model ${model} timeout after ${REQUEST_TIMEOUT_MS}ms`;
+        } else {
+          lastError = `Gemini model ${model} network error: ${e?.message || 'unknown network error'}`;
+        }
+        break;
+      } finally {
+        clearTimeout(timer);
+      }
 
       if (res.ok) {
         const data = await res.json();
@@ -97,14 +119,21 @@ Return only the key, e.g.: coffee`;
 
     if (action === 'plan') {
       const { question, places } = body;
-      const placesSummary = places
+      const safeQuestion = String(question || '').trim().slice(0, MAX_QUESTION_LENGTH);
+      const safePlaces = Array.isArray(places) ? places.slice(0, MAX_PLACES) : [];
+
+      if (!safeQuestion) {
+        return NextResponse.json({ error: 'Question is required' }, { status: 400 });
+      }
+
+      const placesSummary = safePlaces
         .map((p: any) => `- ${p.name} (${p.category}) — ${p.address}`)
         .join('\n');
       const prompt = `You are a helpful Tokyo travel assistant. The user has a personal travel blog with these saved places in Tokyo:
 
 ${placesSummary}
 
-The user asks: "${question}"
+The user asks: "${safeQuestion}"
 
 Answer helpfully and specifically using only places from the list above. Be concise (max 4-5 sentences).
 If relevant places exist, name them specifically. If no places match, suggest what kind of place to look for.
@@ -116,6 +145,33 @@ Do not make up places that are not in the list.`;
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
 
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    const message = String(e?.message || 'Unknown Gemini error');
+    const lower = message.toLowerCase();
+
+    if (lower.includes('timeout')) {
+      return NextResponse.json({ error: message }, { status: 504 });
+    }
+
+    if (lower.includes('error (429)') || lower.includes('rate') || lower.includes('quota')) {
+      return NextResponse.json({ error: message }, { status: 429 });
+    }
+
+    if (lower.includes('error (401)') || lower.includes('error (403)')) {
+      return NextResponse.json({ error: message }, { status: 401 });
+    }
+
+    if (lower.includes('error (404)')) {
+      return NextResponse.json({ error: message }, { status: 424 });
+    }
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    geminiConfigured: Boolean(GEMINI_API_KEY),
+    modelCandidates: GEMINI_MODELS,
+  });
 }
