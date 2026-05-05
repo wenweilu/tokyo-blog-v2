@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODELS = [
   process.env.GEMINI_MODEL,
@@ -14,6 +15,12 @@ const MAX_QUESTION_LENGTH = 400;
 const DAILY_REQUEST_CAP = Number(process.env.AI_DAILY_REQUEST_CAP || 100);
 const dailyCounter = new Map<string, { count: number; day: string }>();
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVER_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVER_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVER_KEY)
+  : null;
+
 function dayKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -24,7 +31,7 @@ function getClientKey(request: NextRequest) {
   return ip;
 }
 
-function checkAndCountDailyLimit(request: NextRequest): { allowed: boolean; remaining: number } {
+function checkAndCountDailyLimitMemory(request: NextRequest): { allowed: boolean; remaining: number } {
   if (!Number.isFinite(DAILY_REQUEST_CAP) || DAILY_REQUEST_CAP <= 0) {
     return { allowed: true, remaining: Number.POSITIVE_INFINITY };
   }
@@ -40,6 +47,33 @@ function checkAndCountDailyLimit(request: NextRequest): { allowed: boolean; rema
 
   dailyCounter.set(key, { count: nextCount, day: today });
   return { allowed: true, remaining: Math.max(0, DAILY_REQUEST_CAP - nextCount) };
+}
+
+async function checkAndCountDailyLimit(request: NextRequest): Promise<{ allowed: boolean; remaining: number; source: 'supabase' | 'memory' }> {
+  if (!Number.isFinite(DAILY_REQUEST_CAP) || DAILY_REQUEST_CAP <= 0) {
+    return { allowed: true, remaining: Number.POSITIVE_INFINITY, source: 'memory' };
+  }
+
+  if (supabaseAdmin) {
+    const d = dayKey();
+    const clientKey = getClientKey(request);
+    const { data, error } = await supabaseAdmin.rpc('increment_ai_daily_usage', {
+      p_day: d,
+      p_client_key: clientKey,
+      p_cap: DAILY_REQUEST_CAP,
+    });
+
+    if (!error && data && typeof data.allowed === 'boolean') {
+      return {
+        allowed: data.allowed,
+        remaining: Number(data.remaining ?? 0),
+        source: 'supabase',
+      };
+    }
+  }
+
+  const mem = checkAndCountDailyLimitMemory(request);
+  return { ...mem, source: 'memory' };
 }
 
 function modelUrl(model: string) {
@@ -118,13 +152,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
   }
 
-  const limit = checkAndCountDailyLimit(request);
+  const limit = await checkAndCountDailyLimit(request);
   if (!limit.allowed) {
     return NextResponse.json(
       {
         error: `Daily Ask AI cap reached (${DAILY_REQUEST_CAP}/day). Please try again tomorrow or increase AI_DAILY_REQUEST_CAP.`,
       },
-      { status: 429 }
+      { status: 429, headers: { 'x-rate-limit-source': limit.source } }
     );
   }
 
@@ -214,5 +248,6 @@ export async function GET() {
     geminiConfigured: Boolean(GEMINI_API_KEY),
     modelCandidates: GEMINI_MODELS,
     dailyCap: DAILY_REQUEST_CAP,
+    dailyCapStore: supabaseAdmin ? 'supabase' : 'memory',
   });
 }
